@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HandLog</title>
+  <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5/build/mp4-muxer.min.js"></script>
   <style>
     :root {
       --bg:      #0d0d1a;
@@ -728,8 +729,10 @@ function finishWord() {
 playBtn.addEventListener('click', startPlayback);
 
 function getBestMime() {
-  return ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
-    .find(mime => MediaRecorder.isTypeSupported(mime)) || '';
+  return [
+    'video/mp4;codecs=h264,aac', 'video/mp4',
+    'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm',
+  ].find(mime => MediaRecorder.isTypeSupported(mime)) || '';
 }
 
 function startPlayback() {
@@ -738,27 +741,46 @@ function startPlayback() {
   appState  = 'playing';
   updateUI();
   setStatus(t('statusPreparing'), true);
-
   fillBg();
 
-  const mime   = getBestMime();
-  const stream = canvas.captureStream(30);
-  chunks  = [];
-  recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
-  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-  recorder.onstop = () => {
-    videoBlob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
-    appState  = 'done';
-    setStatus(t('statusDone'));
-    updateUI();
-  };
-  recorder.start();
+  // Try WebCodecs VP9 → MP4 (Chrome Android); fall back to MediaRecorder
+  let encoder = null, muxer = null, muxTarget = null;
+  if (typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
+    const encW = canvas.width  - (canvas.width  % 2);
+    const encH = canvas.height - (canvas.height % 2);
+    try {
+      muxTarget = new Mp4Muxer.ArrayBufferTarget();
+      muxer     = new Mp4Muxer.Muxer({ target: muxTarget,
+        video: { codec: 'vp9', width: encW, height: encH }, fastStart: 'in-memory' });
+      encoder = new VideoEncoder({
+        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+        error:  e => console.error('VideoEncoder:', e),
+      });
+      encoder.configure({ codec: 'vp09.00.41.08', width: encW, height: encH,
+                          bitrate: 8_000_000, framerate: 30 });
+    } catch(e) {
+      encoder = null; muxer = null; muxTarget = null;
+    }
+  }
 
-  const maxDur    = Math.max(300, ...words.map(w => w.duration));
+  if (!encoder) {
+    // MediaRecorder: prefers video/mp4 (iPad WebKit), falls back to webm
+    const mime = getBestMime();
+    const stream = canvas.captureStream(30);
+    recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      videoBlob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+      appState  = 'done'; setStatus(t('statusDone')); updateUI();
+    };
+    recorder.start();
+  }
+
+  const maxDur     = Math.max(300, ...words.map(w => w.duration));
   const playTracks = words.map(w => ({ strokes: w.strokes, cursor: 0, lx: 0, ly: 0, plx: 0, ply: 0 }));
-  let startTime   = null;
+  let startTime    = null;
+  let frameCount   = 0;
 
-  // Small delay so the blank background is captured in the first frames
   setTimeout(() => {
     setStatus(t('statusPlaying'), true);
     requestAnimationFrame(function tick(now) {
@@ -767,15 +789,30 @@ function startPlayback() {
 
       for (const track of playTracks) {
         while (track.cursor < track.strokes.length && track.strokes[track.cursor].t <= elapsed) {
-          applyStroke(track, track.strokes[track.cursor]);
-          track.cursor++;
+          applyStroke(track, track.strokes[track.cursor++]);
         }
+      }
+
+      if (encoder) {
+        const frame = new VideoFrame(canvas, { timestamp: Math.round(elapsed * 1000) });
+        encoder.encode(frame, { keyFrame: frameCount % 60 === 0 });
+        frame.close();
+        frameCount++;
       }
 
       if (elapsed < maxDur) {
         requestAnimationFrame(tick);
+      } else if (encoder) {
+        encoder.flush().then(() => {
+          muxer.finalize();
+          videoBlob = new Blob([muxTarget.buffer], { type: 'video/mp4' });
+          appState  = 'done'; setStatus(t('statusDone')); updateUI();
+        }).catch(e => {
+          console.error('MP4 encode failed:', e);
+          appState = 'done'; setStatus(t('statusDone')); updateUI();
+        });
       } else {
-        setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 200);
+        setTimeout(() => { if (recorder?.state === 'recording') recorder.stop(); }, 200);
       }
     });
   }, 150);
@@ -784,9 +821,21 @@ function startPlayback() {
 /* ── Button: 다운로드 ── */
 dlBtn.addEventListener('click', () => {
   if (!videoBlob) return;
-  const ext = videoBlob.type.includes('mp4') ? 'mp4' : 'webm';
+  const ext      = videoBlob.type.includes('mp4') ? 'mp4' : 'webm';
+  const filename = `handlog_${Date.now()}.${ext}`;
+  const file     = new File([videoBlob], filename, { type: videoBlob.type });
+
+  // iOS/iPadOS: Web Share API — called synchronously within click handler
+  if (navigator.canShare?.({ files: [file] })) {
+    navigator.share({ files: [file] }).catch(e => {
+      if (e.name !== 'AbortError') console.error(e);
+    });
+    return;
+  }
+
+  // Desktop / Android: anchor download
   const url = URL.createObjectURL(videoBlob);
-  const a = Object.assign(document.createElement('a'), { href: url, download: `handwriting_${Date.now()}.${ext}` });
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 });
@@ -918,6 +967,6 @@ canvas.addEventListener('selectstart',     e => e.preventDefault());
 document.addEventListener('contextmenu',   e => e.preventDefault());
 document.addEventListener('selectstart',   e => e.preventDefault());
 </script>
-<p style="font-size:0.65rem;color:#2a2a45;margin-top:auto;padding-top:16px;user-select:text;-webkit-user-select:text">v0.5.0</p>
+<p style="font-size:0.65rem;color:#2a2a45;margin-top:auto;padding-top:16px;user-select:text;-webkit-user-select:text">v0.5.1</p>
 </body>
 </html>
