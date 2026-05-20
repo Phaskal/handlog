@@ -119,6 +119,10 @@
       max-width: calc(100vw - 40px);
       cursor: crosshair;
       touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-user-drag: none;
     }
 
     /* Word chips */
@@ -886,8 +890,8 @@ function onDown(e) {
   canvas.setPointerCapture(e.pointerId);
 
   const pos      = canvasPos(e);
-  const pressure = Math.max(0.05, e.pressure || 0.5);
-  const tiltX    = e.tiltX || 0, tiltY = e.tiltY || 0;
+  const pressure = e.pointerType === 'pen' ? Math.max(0.01, e.pressure) : 0.5;
+  const tiltX    = e.tiltX ?? 0, tiltY = e.tiltY ?? 0;
   prevX = pos.x; prevY = pos.y;
   lastX = pos.x; lastY = pos.y;
   isDrawing = true;
@@ -911,8 +915,8 @@ function onMove(e) {
   if (!isDrawing || appState !== 'adding') return;
 
   const pos      = canvasPos(e);
-  const pressure = Math.max(0.05, e.pressure || 0.5);
-  const tiltX    = e.tiltX || 0, tiltY = e.tiltY || 0;
+  const pressure = e.pointerType === 'pen' ? Math.max(0.01, e.pressure) : 0.5;
+  const tiltX    = e.tiltX ?? 0, tiltY = e.tiltY ?? 0;
   const t        = performance.now() - captureStart;
   const opts     = { color: penColor.value, baseWidth: parseFloat(thickness.value),
                      pressure, tiltX, tiltY, pen: currentPen };
@@ -943,6 +947,9 @@ canvas.addEventListener('pointerdown',   onDown);
 canvas.addEventListener('pointermove',   onMove);
 canvas.addEventListener('pointerup',     onUp);
 canvas.addEventListener('pointercancel', onUp);
+canvas.addEventListener('contextmenu',   e => e.preventDefault());
+canvas.addEventListener('dragstart',     e => e.preventDefault());
+canvas.addEventListener('selectstart',   e => e.preventDefault());
 </script>
 </body>
 </html>
