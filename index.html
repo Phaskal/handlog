@@ -471,6 +471,8 @@ let recorder    = null;
 let chunks      = [];
 let videoBlob   = null;
 let bgImage     = null;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 let logicalW    = 1000;
 let logicalH    = 600;
 const dpr       = window.devicePixelRatio || 1;
@@ -743,9 +745,9 @@ function startPlayback() {
   setStatus(t('statusPreparing'), true);
   fillBg();
 
-  // Try WebCodecs VP9 → MP4 (Chrome Android); fall back to MediaRecorder
+  // Try WebCodecs VP9 → MP4 (Chrome Android/Desktop); iOS uses MediaRecorder MP4 natively
   let encoder = null, muxer = null, muxTarget = null;
-  if (typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
+  if (!isIOS && typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
     const encW = canvas.width  - (canvas.width  % 2);
     const encH = canvas.height - (canvas.height % 2);
     try {
@@ -823,18 +825,7 @@ dlBtn.addEventListener('click', () => {
   if (!videoBlob) return;
   const ext      = videoBlob.type.includes('mp4') ? 'mp4' : 'webm';
   const filename = `handlog_${Date.now()}.${ext}`;
-  const file     = new File([videoBlob], filename, { type: videoBlob.type });
-
-  // iOS/iPadOS: Web Share API — called synchronously within click handler
-  if (navigator.canShare?.({ files: [file] })) {
-    navigator.share({ files: [file] }).catch(e => {
-      if (e.name !== 'AbortError') console.error(e);
-    });
-    return;
-  }
-
-  // Desktop / Android: anchor download
-  const url = URL.createObjectURL(videoBlob);
+  const url      = URL.createObjectURL(videoBlob);
   const a = Object.assign(document.createElement('a'), { href: url, download: filename });
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
@@ -967,6 +958,6 @@ canvas.addEventListener('selectstart',     e => e.preventDefault());
 document.addEventListener('contextmenu',   e => e.preventDefault());
 document.addEventListener('selectstart',   e => e.preventDefault());
 </script>
-<p style="font-size:0.65rem;color:#2a2a45;margin-top:auto;padding-top:16px;user-select:text;-webkit-user-select:text">v0.5.1</p>
+<p style="font-size:0.65rem;color:#2a2a45;margin-top:auto;padding-top:16px;user-select:text;-webkit-user-select:text">v0.5.2</p>
 </body>
 </html>
