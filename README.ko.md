@@ -2,7 +2,7 @@
 
 손글씨를 단어 단위로 녹화하고 동시에 재생해 비디오로 저장하는 브라우저 앱입니다.
 
-[English](README.md)
+**[바로 사용하기 →](https://phaskal.github.io/handlog)** · [English](README.md)
 
 ![Platform](https://img.shields.io/badge/platform-web-lightgray) ![No build](https://img.shields.io/badge/build-none-green)
 
