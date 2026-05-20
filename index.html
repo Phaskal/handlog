@@ -16,6 +16,11 @@
       --muted:   #5a5a7a;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -907,9 +912,11 @@ canvas.addEventListener('pointerdown',   onDown);
 canvas.addEventListener('pointermove',   onMove);
 canvas.addEventListener('pointerup',     onUp);
 canvas.addEventListener('pointercancel', onUp);
-canvas.addEventListener('contextmenu',   e => e.preventDefault());
-canvas.addEventListener('dragstart',     e => e.preventDefault());
-canvas.addEventListener('selectstart',   e => e.preventDefault());
+canvas.addEventListener('contextmenu',     e => e.preventDefault());
+canvas.addEventListener('dragstart',       e => e.preventDefault());
+canvas.addEventListener('selectstart',     e => e.preventDefault());
+document.addEventListener('contextmenu',   e => e.preventDefault());
+document.addEventListener('selectstart',   e => e.preventDefault());
 </script>
 </body>
 </html>
