@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HandLog</title>
+  <style>
+    :root {
+      --bg:      #0d0d1a;
+      --panel:   #161628;
+      --border:  #252540;
+      --accent:  #6c63ff;
+      --danger:  #ff4757;
+      --success: #2ed573;
+      --text:    #e0e0e0;
+      --muted:   #5a5a7a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 28px 20px 48px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #6c63ff;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .hint-step {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .hint-step .num {
+      background: var(--border);
+      border-radius: 50%;
+      width: 18px; height: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .hint-arr { color: var(--border); }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      align-items: stretch;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 16px;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: center;
+    }
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      padding: 0 14px;
+    }
+    .ctrl-group + .ctrl-group { border-left: 1px solid var(--border); }
+    .ctrl-label {
+      font-size: 0.66rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    input[type="color"] {
+      width: 42px; height: 32px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: none; cursor: pointer; padding: 2px;
+      transition: border-color 0.2s;
+    }
+    input[type="color"]:hover { border-color: var(--accent); }
+    .range-row { display: flex; align-items: center; gap: 8px; }
+    input[type="range"] { width: 100px; accent-color: var(--accent); }
+    .range-val { font-size: 0.74rem; color: var(--accent); font-weight: 700; min-width: 28px; }
+
+    /* Canvas */
+    .canvas-wrap {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      line-height: 0;
+      transition: box-shadow 0.3s;
+    }
+    .canvas-wrap.active {
+      box-shadow: 0 0 0 3px var(--accent), 0 8px 40px rgba(0,0,0,0.5);
+    }
+    .canvas-wrap.playing {
+      box-shadow: 0 0 0 3px var(--danger), 0 8px 40px rgba(0,0,0,0.5);
+    }
+    canvas {
+      display: block;
+      max-width: calc(100vw - 40px);
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    /* Word chips */
+    .word-section {
+      max-width: calc(100vw - 40px);
+      width: 100%;
+    }
+    .word-section-label {
+      font-size: 0.67rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .word-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 36px;
+      align-items: center;
+    }
+    .word-chip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 10px 5px 14px;
+      font-size: 0.8rem;
+    }
+    .chip-label { color: var(--text); font-weight: 600; }
+    .chip-dur   { color: var(--muted); font-size: 0.72rem; }
+    .chip-del {
+      background: none; border: none;
+      color: var(--muted); cursor: pointer;
+      font-size: 1rem; padding: 0 2px; line-height: 1;
+      transition: color 0.15s;
+    }
+    .chip-del:hover { color: var(--danger); }
+    .word-empty { color: var(--muted); font-size: 0.8rem; }
+
+    /* Status */
+    .status-bar {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.8rem; color: var(--muted); min-height: 22px;
+    }
+    .rec-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--danger); flex-shrink: 0; display: none;
+      animation: blink 1s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
+
+    /* Buttons */
+    .buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    button {
+      padding: 9px 20px; border: none; border-radius: 10px;
+      cursor: pointer; font-size: 0.85rem; font-weight: 700;
+      letter-spacing: 0.02em;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    }
+    button:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 5px 16px rgba(0,0,0,0.3); }
+    button:not(:disabled):active { transform: translateY(0); }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    #addWordBtn   { background: var(--accent); color: #fff; }
+    #doneWordBtn  { background: var(--success); color: #0d0d1a; }
+    #cancelWordBtn{ background: var(--border);  color: var(--text); }
+    #playBtn      { background: #ff6b9d; color: #fff; }
+    #dlBtn        { background: var(--success); color: #0d0d1a; }
+    #resetBtn     { background: var(--border);  color: var(--text); }
+
+    .hidden { display: none !important; }
+
+    /* Background image upload */
+    .img-upload-label {
+      display: flex; align-items: center; justify-content: center;
+      padding: 5px 12px; background: var(--border); border-radius: 8px;
+      cursor: pointer; font-size: 0.74rem; font-weight: 600; color: var(--text);
+      transition: background 0.2s, color 0.2s; white-space: nowrap; gap: 5px;
+    }
+    .img-upload-label:hover { background: var(--accent); color: white; }
+    .img-filename {
+      font-size: 0.66rem; color: var(--accent);
+      max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .clear-img-btn {
+      background: none; color: var(--muted); font-size: 0.78rem;
+      padding: 2px 7px; border: 1px solid var(--border); border-radius: 5px; cursor: pointer;
+    }
+    .clear-img-btn:hover { color: var(--danger) !important; border-color: var(--danger) !important;
+      transform: none !important; box-shadow: none !important; }
+
+    /* Pen type selector */
+    .pen-type-row { display: flex; gap: 4px; flex-wrap: wrap; }
+    .pen-btn {
+      padding: 4px 10px; border-radius: 7px; font-size: 0.71rem;
+      font-weight: 700; letter-spacing: 0; cursor: pointer;
+      background: var(--border); color: var(--muted);
+      border: 1.5px solid transparent;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .pen-btn:hover { border-color: var(--accent); color: var(--text); transform: none; box-shadow: none; }
+    .pen-btn.active { background: var(--accent); color: #fff; border-color: transparent; }
+    .pen-btn:active { transform: none; }
+    .pen-note { font-size: 0.65rem; color: var(--muted); margin-top: 4px; text-align: center; }
+
+    /* Language toggle */
+    .header-row {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; max-width: calc(100vw - 40px); position: relative;
+    }
+    .lang-toggle {
+      position: absolute; right: 0;
+      display: flex; gap: 3px;
+    }
+    .lang-btn {
+      padding: 4px 9px; border-radius: 6px; font-size: 0.7rem; font-weight: 700;
+      cursor: pointer; background: var(--border); color: var(--muted);
+      border: 1.5px solid transparent; transition: all 0.15s;
+      letter-spacing: 0.04em;
+    }
+    .lang-btn:hover { border-color: var(--accent); color: var(--text);
+      transform: none !important; box-shadow: none !important; }
+    .lang-btn.active { background: var(--accent); color: #fff; }
+    .lang-btn.active:hover { border-color: transparent; }
+  </style>
+</head>
+<body>
+
+<div class="header-row">
+  <h1 id="appTitle">손글씨 동시 재생기</h1>
+  <div class="lang-toggle">
+    <button type="button" class="lang-btn active" data-lang="ko">KO</button>
+    <button type="button" class="lang-btn" data-lang="en">EN</button>
+  </div>
+</div>
+
+<div class="hint">
+  <div class="hint-step"><span class="num">1</span><span data-i18n="hint1"> 단어 추가 후 쓰기</span></div>
+  <span class="hint-arr">›</span>
+  <div class="hint-step"><span class="num">2</span><span data-i18n="hint2"> 반복</span></div>
+  <span class="hint-arr">›</span>
+  <div class="hint-step"><span class="num">3</span><span data-i18n="hint3"> 동시 재생 &amp; 녹화</span></div>
+  <span class="hint-arr">›</span>
+  <div class="hint-step"><span class="num">4</span><span data-i18n="hint4"> 다운로드</span></div>
+</div>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <span class="ctrl-label" data-i18n="labelBgColor">배경색</span>
+    <input type="color" id="bgColor" value="#ffffff">
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label" data-i18n="labelPenColor">펜 색상</span>
+    <input type="color" id="penColor" value="#1a1a1a">
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label" data-i18n="labelThickness">두께</span>
+    <div class="range-row">
+      <input type="range" id="thickness" min="1" max="40" value="4">
+      <span class="range-val" id="thickVal">4px</span>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label" data-i18n="labelBgImage">배경 이미지</span>
+    <label class="img-upload-label">
+      <span data-i18n="chooseImage">📂 이미지 선택</span>
+      <input type="file" id="bgImageInput" accept="image/*" hidden>
+    </label>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:4px;min-height:18px">
+      <span class="img-filename" id="imgFilename"></span>
+      <button type="button" class="clear-img-btn hidden" id="clearBgBtn" data-i18n="removeImage">✕ 제거</button>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label" data-i18n="labelPenType">펜 종류</span>
+    <div class="pen-type-row">
+      <button type="button" class="pen-btn active" data-pen="basic" data-i18n="penBasic">기본</button>
+      <button type="button" class="pen-btn" data-pen="pressure" data-i18n="penPressure">압력</button>
+      <button type="button" class="pen-btn" data-pen="brush" data-i18n="penBrush">붓</button>
+      <button type="button" class="pen-btn" data-pen="calli" data-i18n="penCalli">캘리</button>
+      <button type="button" class="pen-btn" data-pen="pencil" data-i18n="penPencil">연필</button>
+    </div>
+    <div class="pen-note" data-i18n="penNote">압력·기울임은 애플펜슬 등 스타일러스 사용 시 동작</div>
+  </div>
+</div>
+
+<div class="canvas-wrap" id="canvasWrap">
+  <canvas id="canvas" width="800" height="500"></canvas>
+</div>
+
+<div class="word-section hidden" id="wordSection">
+  <div class="word-section-label" data-i18n="wordSectionLabel">기록된 단어</div>
+  <div class="word-chips" id="wordChips">
+    <span class="word-empty" id="wordEmpty" data-i18n="wordEmpty">아직 없음</span>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="rec-dot" id="recDot"></div>
+  <span id="statusText">단어 추가 버튼으로 시작하세요</span>
+</div>
+
+<div class="buttons">
+  <button id="addWordBtn">+ 단어 추가</button>
+  <button id="doneWordBtn"   class="hidden" disabled>✓ 완료</button>
+  <button id="cancelWordBtn" class="hidden">✕ 취소</button>
+  <button id="playBtn"       class="hidden">▶ 동시 재생 &amp; 녹화</button>
+  <button id="dlBtn"         class="hidden">⬇ 비디오 다운로드</button>
+  <button id="resetBtn"      class="hidden">↺ 처음부터</button>
+</div>
+
+<script>
+/* ── Elements ── */
+const canvas        = document.getElementById('canvas');
+const ctx           = canvas.getContext('2d');
+const canvasWrap    = document.getElementById('canvasWrap');
+const bgColor       = document.getElementById('bgColor');
+const penColor      = document.getElementById('penColor');
+const thickness     = document.getElementById('thickness');
+const thickVal      = document.getElementById('thickVal');
+const wordSection   = document.getElementById('wordSection');
+const wordChips     = document.getElementById('wordChips');
+const wordEmpty     = document.getElementById('wordEmpty');
+const recDot        = document.getElementById('recDot');
+const statusText    = document.getElementById('statusText');
+const addWordBtn    = document.getElementById('addWordBtn');
+const doneWordBtn   = document.getElementById('doneWordBtn');
+const cancelWordBtn = document.getElementById('cancelWordBtn');
+const playBtn       = document.getElementById('playBtn');
+const dlBtn         = document.getElementById('dlBtn');
+const resetBtn      = document.getElementById('resetBtn');
+
+/* ── i18n ── */
+const LANGS = {
+  ko: {
+    title: 'HandLog',
+    hint1: ' 단어 추가 후 쓰기', hint2: ' 반복',
+    hint3: ' 동시 재생 & 녹화',  hint4: ' 다운로드',
+    labelBgColor: '배경색', labelPenColor: '펜 색상',
+    labelThickness: '두께', labelBgImage: '배경 이미지',
+    chooseImage: '📂 이미지 선택', removeImage: '✕ 제거',
+    labelPenType: '펜 종류',
+    penBasic: '기본', penPressure: '압력', penBrush: '붓',
+    penCalli: '캘리', penPencil: '연필',
+    penNote: '압력·기울임은 애플펜슬 등 스타일러스 사용 시 동작',
+    wordSectionLabel: '기록된 단어', wordEmpty: '아직 없음',
+    statusInit:        '단어 추가 버튼으로 시작하세요',
+    statusAdding:      '단어를 쓰세요 — 첫 획부터 자동으로 기록됩니다',
+    statusCancel:      '단어를 더 추가하거나 동시 재생하세요',
+    statusWordCount:   n => `단어 ${n}개 기록됨 — 더 추가하거나 동시 재생하세요`,
+    statusPreparing:   '재생 준비 중…',
+    statusPlaying:     '동시 재생 중…',
+    statusDone:        '녹화 완료! 비디오를 다운로드하세요',
+    btnAdd: '+ 단어 추가', btnDone: '✓ 완료', btnCancel: '✕ 취소',
+    btnPlay: '▶ 동시 재생 & 녹화', btnDownload: '⬇ 비디오 다운로드',
+    btnReset: '↺ 처음부터',
+    wordLabel: i => `단어 ${i}`, deleteTitle: '삭제', sec: '초',
+  },
+  en: {
+    title: 'HandLog',
+    hint1: ' Add word & write', hint2: ' Repeat',
+    hint3: ' Play all & record',  hint4: ' Download',
+    labelBgColor: 'BG Color', labelPenColor: 'Pen Color',
+    labelThickness: 'Thickness', labelBgImage: 'BG Image',
+    chooseImage: '📂 Choose image', removeImage: '✕ Remove',
+    labelPenType: 'Pen Type',
+    penBasic: 'Basic', penPressure: 'Pressure', penBrush: 'Brush',
+    penCalli: 'Calli', penPencil: 'Pencil',
+    penNote: 'Pressure & tilt require Apple Pencil or stylus',
+    wordSectionLabel: 'Recorded Words', wordEmpty: 'None yet',
+    statusInit:        'Click "Add Word" to begin',
+    statusAdding:      'Write now — recording starts on first stroke',
+    statusCancel:      'Add more words or play all simultaneously',
+    statusWordCount:   n => `${n} word${n !== 1 ? 's' : ''} recorded — add more or play all`,
+    statusPreparing:   'Preparing…',
+    statusPlaying:     'Playing simultaneously…',
+    statusDone:        'Done! Download your video below',
+    btnAdd: '+ Add Word', btnDone: '✓ Done', btnCancel: '✕ Cancel',
+    btnPlay: '▶ Play All & Record', btnDownload: '⬇ Download Video',
+    btnReset: '↺ Reset',
+    wordLabel: i => `Word ${i}`, deleteTitle: 'Delete', sec: 's',
+  },
+};
+
+let currentLang = 'ko';
+function t(key, ...args) {
+  const v = LANGS[currentLang][key];
+  return typeof v === 'function' ? v(...args) : (v ?? key);
+}
+
+function applyLang() {
+  document.documentElement.lang = currentLang;
+  document.title = t('title');
+  document.getElementById('appTitle').textContent = t('title');
+  // Static data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // Buttons
+  addWordBtn.textContent    = t('btnAdd');
+  doneWordBtn.textContent   = t('btnDone');
+  cancelWordBtn.textContent = t('btnCancel');
+  playBtn.innerHTML         = t('btnPlay').replace('&', '&amp;');
+  dlBtn.textContent         = t('btnDownload');
+  resetBtn.textContent      = t('btnReset');
+  // Status — re-derive from current state
+  const dot = appState === 'playing';
+  if      (appState === 'idle')      setStatus(t('statusInit'));
+  else if (appState === 'adding')    setStatus(t('statusAdding'));
+  else if (appState === 'reviewing') setStatus(t('statusWordCount', words.length));
+  else if (appState === 'playing')   setStatus(t('statusPlaying'), true);
+  else if (appState === 'done')      setStatus(t('statusDone'));
+  // Re-render word chips (for translated "단어 N" labels)
+  if (appState === 'reviewing' || appState === 'done') updateWordList();
+  // Lang buttons
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === currentLang);
+  });
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.lang === currentLang) return;
+    currentLang = btn.dataset.lang;
+    applyLang();
+  });
+});
+
+/* ── App state ── */
+// idle | adding | reviewing | playing | done
+let appState    = 'idle';
+let words       = [];        // [{id, strokes:[{type,x,y,t,color,width}], duration}]
+let wordIdCount = 0;
+let curStrokes  = [];
+let captureStart= null;
+let isDrawing   = false;
+let lastX = 0, lastY = 0, prevX = 0, prevY = 0;
+let currentPen  = 'basic';
+let pendingDone = false;
+let recorder    = null;
+let chunks      = [];
+let videoBlob   = null;
+let bgImage     = null;
+let logicalW    = 1000;
+let logicalH    = 600;
+const dpr       = window.devicePixelRatio || 1;
+
+/* ── Init ── */
+{
+  const initW = Math.min(1200, window.innerWidth - 40);
+  const initH = Math.round(initW * 0.6);
+  resizeCanvas(initW, initH);
+}
+fillBg();
+applyLang();
+
+/* ── Controls ── */
+thickness.addEventListener('input', () => { thickVal.textContent = thickness.value + 'px'; });
+
+document.querySelectorAll('.pen-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pen-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPen = btn.dataset.pen;
+  });
+});
+
+bgColor.addEventListener('input', () => {
+  if (appState !== 'adding' && appState !== 'playing') {
+    fillBg();
+    words.forEach(w => replayInstant(w));
+  }
+});
+
+/* ── Helpers ── */
+function resizeCanvas(w, h) {
+  const oldW = logicalW, oldH = logicalH;
+  logicalW = w; logicalH = h;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  ctx.scale(dpr, dpr);
+  updateCanvasDisplaySize();
+  // Rescale stored stroke coordinates proportionally
+  if (oldW !== w || oldH !== h) {
+    for (const word of words) {
+      for (const s of word.strokes) {
+        s.x = s.x / oldW * w;
+        s.y = s.y / oldH * h;
+      }
+    }
+  }
+}
+
+function updateCanvasDisplaySize() {
+  const maxW  = window.innerWidth - 40;
+  const scale = Math.min(1, maxW / logicalW);
+  canvas.style.width  = Math.round(logicalW * scale) + 'px';
+  canvas.style.height = Math.round(logicalH * scale) + 'px';
+}
+
+window.addEventListener('resize', updateCanvasDisplaySize);
+
+function fillBg() {
+  ctx.save();
+  if (bgImage) {
+    ctx.drawImage(bgImage, 0, 0, logicalW, logicalH);
+  } else {
+    ctx.fillStyle = bgColor.value;
+    ctx.fillRect(0, 0, logicalW, logicalH);
+  }
+  ctx.restore();
+}
+
+function setStatus(text, dot = false) {
+  statusText.textContent = text;
+  statusText.style.color = dot ? '#e0e0e0' : 'var(--muted)';
+  recDot.style.display   = dot ? 'block' : 'none';
+}
+
+// ── Per-pen drawing ──────────────────────────────────────────────────────────
+function drawSegment(px, py, x0, y0, x1, y1, opts) {
+  const { color, baseWidth, pressure = 0.5, tiltX = 0, tiltY = 0, pen = 'basic' } = opts;
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  const pmx = (px + x0) / 2, pmy = (py + y0) / 2;
+
+  ctx.save();
+  ctx.strokeStyle = color; ctx.fillStyle = color;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+  if (pen === 'pressure') {
+    // Width scales with pressure; Apple Pencil gives 0→1, mouse gives 0.5
+    ctx.lineWidth = Math.max(0.5, baseWidth * (0.2 + pressure * 1.8));
+    ctx.beginPath(); ctx.moveTo(pmx, pmy); ctx.quadraticCurveTo(x0, y0, mx, my); ctx.stroke();
+
+  } else if (pen === 'brush') {
+    // Main stroke — opacity and width driven by pressure
+    const w = Math.max(1, baseWidth * (0.4 + pressure * 2));
+    ctx.lineWidth = w;
+    ctx.globalAlpha = 0.35 + pressure * 0.55;
+    ctx.beginPath(); ctx.moveTo(pmx, pmy); ctx.quadraticCurveTo(x0, y0, mx, my); ctx.stroke();
+    // Sparse bristles
+    for (let i = 0; i < 5; i++) {
+      const off = (Math.random() - 0.5) * w * 0.7;
+      ctx.lineWidth = w * 0.1;
+      ctx.globalAlpha = 0.05 + Math.random() * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(pmx + off, pmy + off * 0.5);
+      ctx.quadraticCurveTo(x0 + off * 0.6, y0 + off * 0.3, mx + off, my + off * 0.5);
+      ctx.stroke();
+    }
+
+  } else if (pen === 'calli') {
+    // Nib angle: from stylus tilt if available, else fixed 45°
+    const nibAngle = (tiltX !== 0 || tiltY !== 0)
+      ? Math.atan2(tiltX * Math.PI / 180, tiltY * Math.PI / 180)
+      : Math.PI / 4;
+    const dx = x1 - x0, dy = y1 - y0;
+    const strokeDir = Math.atan2(dy || 0.001, dx || 0.001);
+    const factor = Math.abs(Math.sin(strokeDir - nibAngle));
+    ctx.lineWidth = Math.max(0.5, baseWidth * (0.05 + factor * 1.4));
+    ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.moveTo(pmx, pmy); ctx.quadraticCurveTo(x0, y0, mx, my); ctx.stroke();
+
+  } else if (pen === 'pencil') {
+    // tiltMag: 0 = upright, 1 = 60° tilt (side-of-pencil shading)
+    const tiltMag = Math.min(1, Math.sqrt(tiltX * tiltX + tiltY * tiltY) / 60);
+    const coreW = baseWidth * (0.25 + tiltMag * 0.5);
+    const spreadW = baseWidth * (0.5 + tiltMag * 3);
+    // Core line
+    ctx.lineWidth = coreW;
+    ctx.globalAlpha = (0.85 - tiltMag * 0.35) * (0.4 + pressure * 0.6);
+    ctx.beginPath(); ctx.moveTo(pmx, pmy); ctx.quadraticCurveTo(x0, y0, mx, my); ctx.stroke();
+    // Grain — always a little, more when tilted
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const grainCount = Math.min(60, Math.ceil(len * spreadW * (0.04 + tiltMag * 0.12)));
+    ctx.globalAlpha = 0.03 + tiltMag * 0.12;
+    for (let i = 0; i < grainCount; i++) {
+      const t = Math.random();
+      ctx.fillRect(
+        x0 + (x1 - x0) * t + (Math.random() - 0.5) * spreadW,
+        y0 + (y1 - y0) * t + (Math.random() - 0.5) * spreadW * 0.6,
+        1, 1
+      );
+    }
+
+  } else { // basic
+    ctx.lineWidth = baseWidth;
+    ctx.beginPath(); ctx.moveTo(pmx, pmy); ctx.quadraticCurveTo(x0, y0, mx, my); ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawDot(x, y, opts) {
+  const { color, baseWidth, pressure = 0.5, pen = 'basic' } = opts;
+  const r = pen === 'pressure' ? baseWidth / 2 * Math.max(0.2, pressure * 2)
+          : pen === 'brush'    ? baseWidth / 2 * Math.max(0.4, pressure * 2)
+          : baseWidth / 2;
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = pen === 'brush' ? 0.35 + pressure * 0.55 : 1;
+  ctx.beginPath(); ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ── Replay helpers ────────────────────────────────────────────────────────────
+function replayInstant(word) {
+  let plx = 0, ply = 0, lx = 0, ly = 0;
+  for (const s of word.strokes) {
+    const opts = { color: s.color, baseWidth: s.width, pressure: s.pressure ?? 0.5,
+                   tiltX: s.tiltX ?? 0, tiltY: s.tiltY ?? 0, pen: s.pen ?? 'basic' };
+    if (s.type === 'start') {
+      drawDot(s.x, s.y, opts);
+      plx = s.x; ply = s.y; lx = s.x; ly = s.y;
+    } else if (s.type === 'draw') {
+      drawSegment(plx, ply, lx, ly, s.x, s.y, opts);
+      plx = lx; ply = ly; lx = s.x; ly = s.y;
+    } else if (s.type === 'end') {
+      lx = s.x; ly = s.y;
+    }
+  }
+}
+
+function applyStroke(track, s) {
+  const opts = { color: s.color, baseWidth: s.width, pressure: s.pressure ?? 0.5,
+                 tiltX: s.tiltX ?? 0, tiltY: s.tiltY ?? 0, pen: s.pen ?? 'basic' };
+  if (s.type === 'start') {
+    drawDot(s.x, s.y, opts);
+    track.plx = s.x; track.ply = s.y; track.lx = s.x; track.ly = s.y;
+  } else if (s.type === 'draw') {
+    drawSegment(track.plx, track.ply, track.lx, track.ly, s.x, s.y, opts);
+    track.plx = track.lx; track.ply = track.ly; track.lx = s.x; track.ly = s.y;
+  } else if (s.type === 'end') {
+    track.lx = s.x; track.ly = s.y;
+  }
+}
+
+/* ── Word list UI ── */
+function updateWordList() {
+  wordChips.querySelectorAll('.word-chip').forEach(el => el.remove());
+  wordEmpty.style.display = words.length === 0 ? '' : 'none';
+
+  words.forEach((word, i) => {
+    const chip  = document.createElement('div');
+    chip.className = 'word-chip';
+
+    const label = document.createElement('span');
+    label.className = 'chip-label';
+    label.textContent = t('wordLabel', i + 1);
+
+    const dur = document.createElement('span');
+    dur.className = 'chip-dur';
+    dur.textContent = `${(word.duration / 1000).toFixed(1)}${t('sec')}`;
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'chip-del';
+    del.title = t('deleteTitle');
+    del.textContent = '×';
+    del.addEventListener('click', (e) => { e.stopPropagation(); deleteWord(i); });
+
+    chip.append(label, dur, del);
+    wordChips.appendChild(chip);
+  });
+}
+
+function deleteWord(idx) {
+  words.splice(idx, 1);
+  fillBg();
+  words.forEach(w => replayInstant(w));
+  if (words.length === 0) appState = 'idle';
+  updateWordList();
+  updateUI();
+}
+
+/* ── UI visibility ── */
+function updateUI() {
+  const adding    = appState === 'adding';
+  const reviewing = appState === 'reviewing';
+  const playing   = appState === 'playing';
+  const done      = appState === 'done';
+
+  addWordBtn.classList.toggle   ('hidden', adding || playing);
+  doneWordBtn.classList.toggle  ('hidden', !adding);
+  cancelWordBtn.classList.toggle('hidden', !adding);
+  playBtn.classList.toggle      ('hidden', !reviewing && !done);
+  dlBtn.classList.toggle        ('hidden', !done);
+  resetBtn.classList.toggle     ('hidden', appState === 'idle' || adding);
+  wordSection.classList.toggle  ('hidden', appState === 'idle' || adding || playing);
+
+  canvasWrap.classList.toggle('active',  adding);
+  canvasWrap.classList.toggle('playing', playing);
+}
+
+/* ── Button: 단어 추가 ── */
+addWordBtn.addEventListener('click', () => {
+  appState    = 'adding';
+  curStrokes  = [];
+  captureStart= null;
+  pendingDone = false;
+  doneWordBtn.disabled = true;
+  setStatus(t('statusAdding'));
+  updateUI();
+});
+
+/* ── Button: 완료 ── */
+doneWordBtn.addEventListener('click', () => {
+  if (isDrawing) { pendingDone = true; doneWordBtn.disabled = true; }
+  else           { finishWord(); }
+});
+
+/* ── Button: 취소 ── */
+cancelWordBtn.addEventListener('click', () => {
+  curStrokes  = []; captureStart = null; pendingDone = false; isDrawing = false;
+  fillBg(); words.forEach(w => replayInstant(w));
+  appState = words.length > 0 ? 'reviewing' : 'idle';
+  setStatus(words.length > 0 ? t('statusCancel') : t('statusInit'));
+  updateUI();
+});
+
+function finishWord() {
+  if (curStrokes.length === 0) return;
+  const duration = curStrokes[curStrokes.length - 1].t;
+  words.push({ id: ++wordIdCount, strokes: curStrokes, duration });
+  curStrokes = []; captureStart = null; pendingDone = false;
+  appState = 'reviewing';
+  updateWordList();
+  setStatus(t('statusWordCount', words.length));
+  updateUI();
+}
+
+/* ── Button: 동시 재생 & 녹화 ── */
+playBtn.addEventListener('click', startPlayback);
+
+function getBestMime() {
+  return ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+    .find(mime => MediaRecorder.isTypeSupported(mime)) || '';
+}
+
+function startPlayback() {
+  videoBlob = null;
+  chunks    = [];
+  appState  = 'playing';
+  updateUI();
+  setStatus(t('statusPreparing'), true);
+
+  fillBg();
+
+  const mime   = getBestMime();
+  const stream = canvas.captureStream(30);
+  chunks  = [];
+  recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  recorder.onstop = () => {
+    videoBlob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+    appState  = 'done';
+    setStatus(t('statusDone'));
+    updateUI();
+  };
+  recorder.start();
+
+  const maxDur    = Math.max(300, ...words.map(w => w.duration));
+  const playTracks = words.map(w => ({ strokes: w.strokes, cursor: 0, lx: 0, ly: 0, plx: 0, ply: 0 }));
+  let startTime   = null;
+
+  // Small delay so the blank background is captured in the first frames
+  setTimeout(() => {
+    setStatus(t('statusPlaying'), true);
+    requestAnimationFrame(function tick(now) {
+      if (startTime === null) startTime = now;
+      const elapsed = now - startTime;
+
+      for (const track of playTracks) {
+        while (track.cursor < track.strokes.length && track.strokes[track.cursor].t <= elapsed) {
+          applyStroke(track, track.strokes[track.cursor]);
+          track.cursor++;
+        }
+      }
+
+      if (elapsed < maxDur) {
+        requestAnimationFrame(tick);
+      } else {
+        setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 200);
+      }
+    });
+  }, 150);
+}
+
+/* ── Button: 다운로드 ── */
+dlBtn.addEventListener('click', () => {
+  if (!videoBlob) return;
+  const ext = videoBlob.type.includes('mp4') ? 'mp4' : 'webm';
+  const url = URL.createObjectURL(videoBlob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: `handwriting_${Date.now()}.${ext}` });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+
+/* ── Button: 처음부터 ── */
+resetBtn.addEventListener('click', () => {
+  words = []; wordIdCount = 0; curStrokes = []; captureStart = null;
+  isDrawing = false; pendingDone = false; recorder = null; chunks = []; videoBlob = null;
+  appState = 'idle';
+  doneWordBtn.disabled = false;
+  fillBg(); updateWordList();
+  setStatus(t('statusInit'));
+  updateUI();
+});
+
+/* ── Drawing ── */
+function canvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = logicalW / rect.width, sy = logicalH / rect.height;
+  const src = e.touches ? e.touches[0] : e;
+  return { x: (src.clientX - rect.left) * sx, y: (src.clientY - rect.top) * sy };
+}
+
+/* ── Background image ── */
+const bgImageInput = document.getElementById('bgImageInput');
+const clearBgBtn2  = document.getElementById('clearBgBtn');
+const imgFilename  = document.getElementById('imgFilename');
+
+bgImageInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    bgImage = img;
+    URL.revokeObjectURL(url);
+    const maxW = Math.min(1400, window.innerWidth - 40);
+    const maxH = Math.min(900, window.innerHeight - 350);
+    let w = img.naturalWidth, h = img.naturalHeight;
+    if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+    if (h > maxH) { w = Math.round(w * maxH / h); h = maxH; }
+    resizeCanvas(w, h);
+    fillBg();
+    words.forEach(word => replayInstant(word));
+    clearBgBtn2.classList.remove('hidden');
+    imgFilename.textContent = file.name.length > 16 ? file.name.slice(0, 13) + '…' : file.name;
+  };
+  img.src = url;
+});
+
+clearBgBtn2.addEventListener('click', () => {
+  bgImage = null;
+  bgImageInput.value = '';
+  imgFilename.textContent = '';
+  clearBgBtn2.classList.add('hidden');
+  const defaultW = Math.min(1200, window.innerWidth - 40);
+  resizeCanvas(defaultW, Math.round(defaultW * 0.6));
+  fillBg();
+  words.forEach(word => replayInstant(word));
+});
+
+function onDown(e) {
+  e.preventDefault();
+  if (appState !== 'adding') return;
+
+  canvas.setPointerCapture(e.pointerId);
+
+  const pos      = canvasPos(e);
+  const pressure = Math.max(0.05, e.pressure || 0.5);
+  const tiltX    = e.tiltX || 0, tiltY = e.tiltY || 0;
+  prevX = pos.x; prevY = pos.y;
+  lastX = pos.x; lastY = pos.y;
+  isDrawing = true;
+
+  if (!captureStart) {
+    captureStart = performance.now();
+    doneWordBtn.disabled = false;
+  }
+
+  const t = performance.now() - captureStart;
+  curStrokes.push({ type: 'start', x: pos.x, y: pos.y, t,
+    color: penColor.value, width: parseFloat(thickness.value),
+    pressure, tiltX, tiltY, pen: currentPen });
+
+  drawDot(pos.x, pos.y, { color: penColor.value, baseWidth: parseFloat(thickness.value),
+    pressure, pen: currentPen });
+}
+
+function onMove(e) {
+  e.preventDefault();
+  if (!isDrawing || appState !== 'adding') return;
+
+  const pos      = canvasPos(e);
+  const pressure = Math.max(0.05, e.pressure || 0.5);
+  const tiltX    = e.tiltX || 0, tiltY = e.tiltY || 0;
+  const t        = performance.now() - captureStart;
+  const opts     = { color: penColor.value, baseWidth: parseFloat(thickness.value),
+                     pressure, tiltX, tiltY, pen: currentPen };
+
+  curStrokes.push({ type: 'draw', x: pos.x, y: pos.y, t,
+    color: penColor.value, width: parseFloat(thickness.value),
+    pressure, tiltX, tiltY, pen: currentPen });
+
+  drawSegment(prevX, prevY, lastX, lastY, pos.x, pos.y, opts);
+
+  prevX = lastX; prevY = lastY;
+  lastX = pos.x; lastY = pos.y;
+}
+
+function onUp() {
+  if (!isDrawing) return;
+  isDrawing = false;
+
+  if (appState === 'adding' && captureStart !== null) {
+    const t = performance.now() - captureStart;
+    curStrokes.push({ type: 'end', x: lastX, y: lastY, t, color: penColor.value, width: parseFloat(thickness.value) });
+  }
+
+  if (pendingDone) finishWord();
+}
+
+canvas.addEventListener('pointerdown',   onDown);
+canvas.addEventListener('pointermove',   onMove);
+canvas.addEventListener('pointerup',     onUp);
+canvas.addEventListener('pointercancel', onUp);
+</script>
+</body>
+</html>
