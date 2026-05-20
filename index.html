@@ -470,6 +470,7 @@ let pendingDone = false;
 let recorder    = null;
 let chunks      = [];
 let videoBlob   = null;
+let playRafId   = null;
 let bgImage     = null;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
               (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
@@ -785,7 +786,8 @@ function startPlayback() {
 
   setTimeout(() => {
     setStatus(t('statusPlaying'), true);
-    requestAnimationFrame(function tick(now) {
+    playRafId = requestAnimationFrame(function tick(now) {
+      if (appState !== 'playing') return;
       if (startTime === null) startTime = now;
       const elapsed = now - startTime;
 
@@ -803,7 +805,7 @@ function startPlayback() {
       }
 
       if (elapsed < maxDur) {
-        requestAnimationFrame(tick);
+        playRafId = requestAnimationFrame(tick);
       } else if (encoder) {
         encoder.flush().then(() => {
           muxer.finalize();
@@ -833,6 +835,8 @@ dlBtn.addEventListener('click', () => {
 
 /* ── Button: 처음부터 ── */
 resetBtn.addEventListener('click', () => {
+  if (playRafId) { cancelAnimationFrame(playRafId); playRafId = null; }
+  if (recorder?.state === 'recording') recorder.stop();
   words = []; wordIdCount = 0; curStrokes = []; captureStart = null;
   isDrawing = false; pendingDone = false; recorder = null; chunks = []; videoBlob = null;
   appState = 'idle';
@@ -958,6 +962,6 @@ canvas.addEventListener('selectstart',     e => e.preventDefault());
 document.addEventListener('contextmenu',   e => e.preventDefault());
 document.addEventListener('selectstart',   e => e.preventDefault());
 </script>
-<p style="font-size:0.65rem;color:#2a2a45;margin-top:auto;padding-top:16px;user-select:text;-webkit-user-select:text">v0.5.2</p>
+<p style="font-size:0.65rem;color:#2a2a45;margin-top:auto;padding-top:16px;user-select:text;-webkit-user-select:text">v0.5.3</p>
 </body>
 </html>
