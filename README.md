@@ -3,6 +3,7 @@
 A browser-based app for recording handwriting as video — word by word, played back simultaneously.
 
 **[Try it →](https://phaskal.github.io/handlog)**
+
 [한국어](README.ko.md)
 
 ![Platform](https://img.shields.io/badge/platform-web-lightgray) ![No build](https://img.shields.io/badge/build-none-green)
